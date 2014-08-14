@@ -34,6 +34,7 @@ minerd_SOURCES	= elist.h \
 		  x13.c \
 		  x14.c \
 		  x15.c \
+		  pentablake.c \
 		  sha3/sph_keccak.c \
 		  sha3/sph_hefty1.c \
 		  sha3/sph_groestl.c \
