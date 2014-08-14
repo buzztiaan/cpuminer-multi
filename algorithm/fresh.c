@@ -11,36 +11,43 @@
 
 //#define DEBUG_ALGO
 
-static void freshhash(void* output, const void* input, uint32_t len)
+/* Move init out of loop, so init once externally, and then use one single memcpy with that bigger memory block */
+typedef struct {
+	sph_shavite512_context	shavite;
+	sph_simd512_context	simd;
+	sph_echo512_context	echo;
+} freshhash_context_holder;
+
+/* no need to copy, because close reinit the context */
+static __thread freshhash_context_holder ctx;
+
+void init_fresh_contexts(void *dummy)
 {
-	unsigned char hash[128]; // uint32_t hashA[16], hashB[16];
-	#define hashA hash
-	#define hashB hash+64
+	sph_shavite512_init(&ctx.shavite);
+	sph_simd512_init(&ctx.simd);
+	sph_echo512_init(&ctx.echo);
+}
 
-	memset(hash, 0, 128);
-	sph_shavite512_context ctx_shavite1;
-	sph_simd512_context ctx_simd1;
-	sph_echo512_context ctx_echo1;
+static void freshhash(void* output, const void* input)
+{
+	uint32_t hash[16];
 
-	sph_shavite512_init(&ctx_shavite1);
-	sph_shavite512(&ctx_shavite1, input, len);
-	sph_shavite512_close(&ctx_shavite1, hashA);
+	memset(hash, 0, 16 * sizeof(uint32_t));
 
-	sph_simd512_init(&ctx_simd1);
-	sph_simd512(&ctx_simd1, hashA, 64);
-	sph_simd512_close(&ctx_simd1, hashB);
+	sph_shavite512(&ctx.shavite, input, 80);
+	sph_shavite512_close(&ctx.shavite, hash);
 
-	sph_shavite512_init(&ctx_shavite1);
-	sph_shavite512(&ctx_shavite1, hashB, 64);
-	sph_shavite512_close(&ctx_shavite1, hashA);
+	sph_simd512(&ctx.simd, hash, 64);
+	sph_simd512_close(&ctx.simd, hash);
 
-	sph_simd512_init(&ctx_simd1);
-	sph_simd512(&ctx_simd1, hashA, 64);
-	sph_simd512_close(&ctx_simd1, hashB);
+	sph_shavite512(&ctx.shavite, hash, 64);
+	sph_shavite512_close(&ctx.shavite, hash);
 
-	sph_echo512_init(&ctx_echo1);
-	sph_echo512(&ctx_echo1, hashB, 64);
-	sph_echo512_close(&ctx_echo1, hashA);
+	sph_simd512(&ctx.simd, hash, 64);
+	sph_simd512_close(&ctx.simd, hash);
+
+	sph_echo512(&ctx.echo, hash, 64);
+	sph_echo512_close(&ctx.echo, hash);
 
 	memcpy(output, hash, 32);
 }
@@ -48,8 +55,6 @@ static void freshhash(void* output, const void* input, uint32_t len)
 int scanhash_fresh(int thr_id, uint32_t *pdata, const uint32_t *ptarget,
 					uint32_t max_nonce, uint64_t *hashes_done)
 {
-	uint32_t len = 80;
-
 	uint32_t n = pdata[19] - 1;
 	const uint32_t first_nonce = pdata[19];
 	const uint32_t Htarg = ptarget[7];
@@ -79,8 +84,7 @@ int scanhash_fresh(int thr_id, uint32_t *pdata, const uint32_t *ptarget,
 		be32enc(&endiandata[kk], ((uint32_t*)pdata)[kk]);
 	};
 #ifdef DEBUG_ALGO
-	if (Htarg != 0)
-		printf("[%d] Htarg=%X\n", thr_id, Htarg);
+	printf("[%d] Htarg=%X\n", thr_id, Htarg);
 #endif
 	for (int m=0; m < sizeof(masks); m++) {
 		if (Htarg <= htmax[m]) {
@@ -88,7 +92,7 @@ int scanhash_fresh(int thr_id, uint32_t *pdata, const uint32_t *ptarget,
 			do {
 				pdata[19] = ++n;
 				be32enc(&endiandata[19], n);
-				freshhash(hash64, &endiandata, len);
+				freshhash(hash64, &endiandata);
 #ifndef DEBUG_ALGO
 				if ((!(hash64[7] & mask)) && fulltest(hash64, ptarget)) {
 					*hashes_done = n - first_nonce + 1;

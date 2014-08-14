@@ -99,42 +99,6 @@ struct workio_cmd {
     } u;
 };
 
-enum algos {
-    ALGO_SCRYPT,      /* scrypt(1024,1,1) */
-    ALGO_SHA256D,     /* SHA-256d */
-    ALGO_KECCAK,      /* Keccak */
-    ALGO_HEAVY,       /* Heavy */
-    ALGO_QUARK,       /* Quark */
-    ALGO_SKEIN,       /* Skein */
-    ALGO_SHAVITE3,    /* Shavite3 */
-    ALGO_BLAKE,       /* Blake */
-    ALGO_FRESH,       /* Fresh */
-    ALGO_X11,         /* X11 */
-    ALGO_X13,         /* X13 */
-    ALGO_X14,         /* X14 */
-    ALGO_X15,         /* X15 Whirlpool */
-    ALGO_PENTABLAKE,  /* Pentablake */
-    ALGO_CRYPTONIGHT, /* CryptoNight */
-};
-
-static const char *algo_names[] = {
-    [ALGO_SCRYPT] =      "scrypt",
-    [ALGO_SHA256D] =     "sha256d",
-    [ALGO_KECCAK] =      "keccak",
-    [ALGO_HEAVY] =       "heavy",
-    [ALGO_QUARK] =       "quark",
-    [ALGO_SKEIN] =       "skein",
-    [ALGO_SHAVITE3] =    "shavite3",
-    [ALGO_BLAKE] =       "blake",
-    [ALGO_FRESH] =       "fresh",
-    [ALGO_X11] =         "x11",
-    [ALGO_X13] =         "x13",
-    [ALGO_X14] =         "x14",
-    [ALGO_X15] =         "x15",
-    [ALGO_PENTABLAKE] =  "pentablake",
-    [ALGO_CRYPTONIGHT] = "cryptonight",
-};
-
 bool opt_debug = false;
 bool opt_protocol = false;
 static bool opt_benchmark = false;
@@ -154,7 +118,7 @@ int opt_timeout = 0;
 static int opt_scantime = 5;
 static json_t *opt_config;
 static const bool opt_time = true;
-static enum algos opt_algo = ALGO_SCRYPT;
+static algorithm_t opt_algo;
 static int opt_scrypt_n = 1024;
 static int opt_n_threads;
 static int num_processors;
@@ -197,27 +161,14 @@ struct option {
 };
 #endif
 
-static char const usage[] =
+static char const usage1[] =
         "\
 Usage: " PROGRAM_NAME " [OPTIONS]\n\
 Options:\n\
   -a, --algo=ALGO       specify the algorithm to use\n\
-                          scrypt       scrypt(1024, 1, 1) (default)\n\
-                          scrypt:N     scrypt(N, 1, 1)\n\
-                          sha256d      SHA-256d\n\
-                          keccak       Keccak\n\
-                          quark        Quark\n\
-                          heavy        Heavy\n\
-                          skein        Skein\n\
-                          shavite3     Shavite3\n\
-                          blake        Blake\n\
-                          fresh        Fresh\n\
-                          x11          X11\n\
-                          x13          X13\n\
-                          x14          X14\n\
-                          x15          X15\n\
-                          pentablake   Pentablake\n\
-                          cryptonight  CryptoNight\n\
+";
+static char const usage2[] =
+        "\
   -o, --url=URL         URL of mining server\n\
   -O, --userpass=U:P    username:password pair for mining server\n\
   -u, --user=USERNAME   username for mining server\n\
@@ -561,7 +512,7 @@ static void share_result(int result, struct work *work, const char *reason) {
     result ? accepted_count++ : rejected_count++;
     pthread_mutex_unlock(&stats_lock);
 
-    switch (opt_algo) {
+    switch (opt_algo.type) {
     case ALGO_CRYPTONIGHT:
         applog(LOG_INFO, "accepted: %lu/%lu (%.2f%%), %.2f H/s at diff %g %s",
                 accepted_count, accepted_count + rejected_count,
@@ -603,7 +554,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work) {
         if (jsonrpc_2) {
             noncestr = bin2hex(((const unsigned char*)work->data) + 39, 4);
             char hash[32];
-            switch(opt_algo) {
+            switch(opt_algo.type) {
             case ALGO_CRYPTONIGHT:
             default:
                 cryptonight_hash(hash, work->data, 76);
@@ -636,7 +587,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work) {
         if(jsonrpc_2) {
             char *noncestr = bin2hex(((const unsigned char*)work->data) + 39, 4);
             char hash[32];
-            switch(opt_algo) {
+            switch(opt_algo.type) {
             case ALGO_CRYPTONIGHT:
             default:
                 cryptonight_hash(hash, work->data, 76);
@@ -998,7 +949,7 @@ static void stratum_gen_work(struct stratum_ctx *sctx, struct work *work) {
         memcpy(work->xnonce2, sctx->job.xnonce2, sctx->xnonce2_size);
 
         /* Generate merkle root */
-        sha256d(merkle_root, sctx->job.coinbase, sctx->job.coinbase_size);
+        opt_algo.gen_hash(merkle_root, sctx->job.coinbase, sctx->job.coinbase_size);
         for (i = 0; i < sctx->job.merkle_count; i++) {
             memcpy(merkle_root + 32, sctx->job.merkle[i], 32);
             sha256d(merkle_root, merkle_root, 64);
@@ -1029,8 +980,10 @@ static void stratum_gen_work(struct stratum_ctx *sctx, struct work *work) {
             free(xnonce2str);
         }
 
-        if (opt_algo == ALGO_SCRYPT)
+        if (opt_algo.type == ALGO_SCRYPT)
             diff_to_target(work->target, sctx->job.diff / 65536.0);
+        else if (opt_algo.type == ALGO_KECCAK)
+            diff_to_target(work->target, sctx->job.diff / 256.0);
         else
             diff_to_target(work->target, sctx->job.diff);
     }
@@ -1042,7 +995,6 @@ static void *miner_thread(void *userdata) {
     struct work work = { { 0 } };
     uint32_t max_nonce;
     uint32_t end_nonce = 0xffffffffU / opt_n_threads * (thr_id + 1) - 0x20;
-    unsigned char *scratchbuf = NULL;
     char s[16];
     int i;
 
@@ -1063,14 +1015,7 @@ static void *miner_thread(void *userdata) {
         affine_to_cpu(thr_id, thr_id % num_processors);
     }
 
-    if (opt_algo == ALGO_SCRYPT) {
-        scratchbuf = scrypt_buffer_alloc(opt_scrypt_n);
-        if (!scratchbuf) {
-            applog(LOG_ERR, "scrypt buffer allocation failed");
-            pthread_mutex_lock(&applog_lock);
-            exit(1);
-        }
-    }
+    if (opt_algo.init_contexts) opt_algo.init_contexts(&opt_scrypt_n);
     uint32_t *nonceptr = (uint32_t*) (((char*)work.data) + (jsonrpc_2 ? 39 : 76));
 
     while (1) {
@@ -1126,7 +1071,7 @@ static void *miner_thread(void *userdata) {
                     - time(NULL );
         max64 *= thr_hashrates[thr_id];
         if (max64 <= 0) {
-            switch (opt_algo) {
+            switch (opt_algo.type) {
             case ALGO_SCRYPT:
                 max64 = opt_scrypt_n < 16 ? 0x3ffff : 0x3fffff / opt_scrypt_n;
                 break;
@@ -1162,77 +1107,8 @@ static void *miner_thread(void *userdata) {
         gettimeofday(&tv_start, NULL );
 
         /* scan nonces for a proof-of-work hash */
-        switch (opt_algo) {
-        case ALGO_SCRYPT:
-            rc = scanhash_scrypt(thr_id, work.data, scratchbuf, work.target,
-                    max_nonce, &hashes_done, opt_scrypt_n);
-            break;
-
-        case ALGO_SHA256D:
-            rc = scanhash_sha256d(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-
-        case ALGO_KECCAK:
-            rc = scanhash_keccak(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-
-        case ALGO_HEAVY:
-            rc = scanhash_heavy(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-
-        case ALGO_QUARK:
-            rc = scanhash_quark(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-
-        case ALGO_SKEIN:
-            rc = scanhash_skein(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-        case ALGO_SHAVITE3:
-            rc = scanhash_ink(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-        case ALGO_BLAKE:
-            rc = scanhash_blake(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-        case ALGO_FRESH:
-            rc = scanhash_fresh(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-        case ALGO_X11:
-            rc = scanhash_x11(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-        case ALGO_X13:
-            rc = scanhash_x13(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-        case ALGO_X14:
-            rc = scanhash_x14(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-        case ALGO_X15:
-            rc = scanhash_x15(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-        case ALGO_PENTABLAKE:
-            rc = scanhash_pentablake(thr_id, work.data, work.target, max_nonce,
-                    &hashes_done);
-            break;
-        case ALGO_CRYPTONIGHT:
-            rc = scanhash_cryptonight(thr_id, work.data, work.target,
+        rc = opt_algo.scanhash(thr_id, work.data, work.target,
                     max_nonce, &hashes_done);
-            break;
-
-        default:
-            /* should never happen */
-            goto out;
-        }
 
         /* record scanhash elapsed time */
         gettimeofday(&tv_end, NULL);
@@ -1244,7 +1120,7 @@ static void *miner_thread(void *userdata) {
             pthread_mutex_unlock(&stats_lock);
         }
         if (!opt_quiet) {
-            switch(opt_algo) {
+            switch(opt_algo.type) {
             case ALGO_CRYPTONIGHT:
                 applog(LOG_INFO, "thread %d: %lu hashes, %.2f H/s", thr_id,
                         hashes_done, thr_hashrates[thr_id]);
@@ -1262,7 +1138,7 @@ static void *miner_thread(void *userdata) {
             for (i = 0; i < opt_n_threads && thr_hashrates[i]; i++)
                 hashrate += thr_hashrates[i];
             if (i == opt_n_threads) {
-                switch(opt_algo) {
+                switch(opt_algo.type) {
                 case ALGO_CRYPTONIGHT:
                     applog(LOG_INFO, "Total: %s H/s", hashrate);
                     break;
@@ -1563,22 +1439,29 @@ static void show_usage_and_exit(int status) {
     if (status)
         fprintf(stderr,
                 "Try `" PROGRAM_NAME " --help' for more information.\n");
-    else
-        printf(usage);
+    else {
+        algorithm_t* algo;
+        printf(usage1);
+        for (algo = algos; algo->name; algo++) {
+            printf("                          %-12s %s%s\n", algo->name, algo->displayname, opt_algo.type == algo->type ? " (default)" : "");
+        }
+        printf(usage2);
+    }
     exit(status);
 }
 
 static void parse_arg(int key, char *arg) {
     char *p;
+    algorithm_t* algo;
     int v, i;
 
     switch (key) {
     case 'a':
-        for (i = 0; i < ARRAY_SIZE(algo_names); i++) {
-            v = strlen(algo_names[i]);
-            if (!strncmp(arg, algo_names[i], v)) {
+        for (algo = algos; algo->name; algo++) {
+            v = strlen(algo->name);
+            if (!strncmp(arg, algo->name, v)) {
                 if (arg[v] == '\0') {
-                    opt_algo = i;
+                    opt_algo = *algo;
                     break;
                 }
                 if (arg[v] == ':' && i == ALGO_SCRYPT) {
@@ -1586,13 +1469,13 @@ static void parse_arg(int key, char *arg) {
                     v = strtol(arg+v+1, &ep, 10);
                     if (*ep || v & (v-1) || v < 2)
                         continue;
-                    opt_algo = i;
+                    opt_algo = *algo;
                     opt_scrypt_n = v;
                     break;
                 }
             }
         }
-        if (i == ARRAY_SIZE(algo_names))
+        if (algo->name == NULL)
             show_usage_and_exit(1);
         break;
     case 'B':
@@ -1849,14 +1732,12 @@ int main(int argc, char *argv[]) {
 	rpc_user = strdup("");
 	rpc_pass = strdup("");
 
+	opt_algo = algos[0];
+
 	/* parse command line */
 	parse_cmdline(argc, argv);
 
-	if (opt_algo == ALGO_QUARK) {
-		init_quarkhash_contexts();
-	} else if (opt_algo == ALGO_BLAKE) {
-		init_blakehash_contexts();
-	} else if(opt_algo == ALGO_CRYPTONIGHT) {
+	if(opt_algo.type == ALGO_CRYPTONIGHT) {
 		jsonrpc_2 = true;
 		aes_ni_supported = has_aes_ni();
 		applog(LOG_INFO, "Using JSON-RPC 2.0");
@@ -2008,7 +1889,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	applog(LOG_INFO, "%d miner threads started, "
-			"using '%s' algorithm.", opt_n_threads, algo_names[opt_algo]);
+			"using '%s' algorithm.", opt_n_threads, opt_algo.name);
 
 	/* main loop - simply wait for workio thread to exit */
 	pthread_join(thr_info[work_thr_id].pth, NULL );

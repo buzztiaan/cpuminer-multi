@@ -17,70 +17,79 @@
 #include "sha3/sph_simd.h"
 #include "sha3/sph_echo.h"
 
+/* Move init out of loop, so init once externally, and then use one single memcpy with that bigger memory block */
+typedef struct {
+	sph_blake512_context	blake;
+	sph_bmw512_context	bmw;
+	sph_groestl512_context	groestl;
+	sph_skein512_context	skein;
+	sph_jh512_context	jh;
+	sph_keccak512_context	keccak;
+	sph_luffa512_context	luffa;
+	sph_cubehash512_context	cubehash;
+	sph_shavite512_context	shavite;
+	sph_simd512_context	simd;
+	sph_echo512_context	echo;
+} x11hash_context_holder;
 
-void x11_hash(char* output, const char* input)
+/* no need to copy, because close reinit the context */
+static __thread x11hash_context_holder ctx;
+
+void init_x11_contexts(void *dummy)
 {
-    sph_blake512_context     ctx_blake;
-    sph_bmw512_context       ctx_bmw;
-    sph_groestl512_context   ctx_groestl;
-    sph_skein512_context     ctx_skein;
-    sph_jh512_context        ctx_jh;
-    sph_keccak512_context    ctx_keccak;
+	sph_blake512_init(&ctx.blake);
+	sph_bmw512_init(&ctx.bmw);
+	sph_groestl512_init(&ctx.groestl);
+	sph_skein512_init(&ctx.skein);
+	sph_jh512_init(&ctx.jh);
+	sph_keccak512_init(&ctx.keccak);
+	sph_luffa512_init(&ctx.luffa);
+	sph_cubehash512_init(&ctx.cubehash);
+	sph_shavite512_init(&ctx.shavite);
+	sph_simd512_init(&ctx.simd);
+	sph_echo512_init(&ctx.echo);
+}
 
-    sph_luffa512_context		ctx_luffa1;
-    sph_cubehash512_context		ctx_cubehash1;
-    sph_shavite512_context		ctx_shavite1;
-    sph_simd512_context		ctx_simd1;
-    sph_echo512_context		ctx_echo1;
+static void x11hash(void *output, const void *input)
+{
+	uint32_t hash[16];
 
-    //these uint512 in the c++ source of the client are backed by an array of uint32
-    uint32_t hashA[16], hashB[16];	
+	memset(hash, 0, 16 * sizeof(uint32_t));
 
-    sph_blake512_init(&ctx_blake);
-    sph_blake512 (&ctx_blake, input, 80);
-    sph_blake512_close (&ctx_blake, hashA);
+	sph_blake512(&ctx.blake, input, 80);
+	sph_blake512_close(&ctx.blake, hash);
 
-    sph_bmw512_init(&ctx_bmw);
-    sph_bmw512 (&ctx_bmw, hashA, 64);
-    sph_bmw512_close(&ctx_bmw, hashB);
+	sph_bmw512(&ctx.bmw, hash, 64);
+	sph_bmw512_close(&ctx.bmw, hash);
 
-    sph_groestl512_init(&ctx_groestl);
-    sph_groestl512 (&ctx_groestl, hashB, 64);
-    sph_groestl512_close(&ctx_groestl, hashA);
+	sph_groestl512(&ctx.groestl, hash, 64);
+	sph_groestl512_close(&ctx.groestl, hash);
 
-    sph_skein512_init(&ctx_skein);
-    sph_skein512 (&ctx_skein, hashA, 64);
-    sph_skein512_close (&ctx_skein, hashB);
+	sph_skein512(&ctx.skein, hash, 64);
+	sph_skein512_close(&ctx.skein, hash);
 
-    sph_jh512_init(&ctx_jh);
-    sph_jh512 (&ctx_jh, hashB, 64);
-    sph_jh512_close(&ctx_jh, hashA);
+	sph_jh512(&ctx.jh, hash, 64);
+	sph_jh512_close(&ctx.jh, hash);
 
-    sph_keccak512_init(&ctx_keccak);
-    sph_keccak512 (&ctx_keccak, hashA, 64);
-    sph_keccak512_close(&ctx_keccak, hashB);
-	
-    sph_luffa512_init (&ctx_luffa1);
-    sph_luffa512 (&ctx_luffa1, hashB, 64);
-    sph_luffa512_close (&ctx_luffa1, hashA);	
-	
-    sph_cubehash512_init (&ctx_cubehash1); 
-    sph_cubehash512 (&ctx_cubehash1, hashA, 64);   
-    sph_cubehash512_close(&ctx_cubehash1, hashB);  
-	
-    sph_shavite512_init (&ctx_shavite1);
-    sph_shavite512 (&ctx_shavite1, hashB, 64);   
-    sph_shavite512_close(&ctx_shavite1, hashA);  
-	
-    sph_simd512_init (&ctx_simd1); 
-    sph_simd512 (&ctx_simd1, hashA, 64);   
-    sph_simd512_close(&ctx_simd1, hashB); 
-	
-    sph_echo512_init (&ctx_echo1); 
-    sph_echo512 (&ctx_echo1, hashB, 64);   
-    sph_echo512_close(&ctx_echo1, hashA); 
+	sph_keccak512(&ctx.keccak, hash, 64);
+	sph_keccak512_close(&ctx.keccak, hash);
 
-    memcpy(output, hashA, 32);
+	sph_luffa512(&ctx.luffa, hash, 64);
+	sph_luffa512_close(&ctx.luffa, hash);
+
+	sph_cubehash512(&ctx.cubehash, hash, 64);
+	sph_cubehash512_close(&ctx.cubehash, hash);
+
+	sph_shavite512(&ctx.shavite, hash, 64);
+	sph_shavite512_close(&ctx.shavite, hash);
+
+	sph_simd512(&ctx.simd, hash, 64);
+	sph_simd512_close(&ctx.simd, hash);
+
+	sph_echo512(&ctx.echo, hash, 64);
+	sph_echo512_close(&ctx.echo, hash);
+
+	memcpy(output, hash, 32);
 }
 
 int scanhash_x11(int thr_id, uint32_t *pdata, const uint32_t *ptarget,
@@ -92,104 +101,59 @@ int scanhash_x11(int thr_id, uint32_t *pdata, const uint32_t *ptarget,
 
 	uint32_t hash64[8] __attribute__((aligned(32)));
 	uint32_t endiandata[32];
-	
-	//char testdata[] = {"\x70\x00\x00\x00\x5d\x38\x5b\xa1\x14\xd0\x79\x97\x0b\x29\xa9\x41\x8f\xd0\x54\x9e\x7d\x68\xa9\x5c\x7f\x16\x86\x21\xa3\x14\x20\x10\x00\x00\x00\x00\x57\x85\x86\xd1\x49\xfd\x07\xb2\x2f\x3a\x8a\x34\x7c\x51\x6d\xe7\x05\x2f\x03\x4d\x2b\x76\xff\x68\xe0\xd6\xec\xff\x9b\x77\xa4\x54\x89\xe3\xfd\x51\x17\x32\x01\x1d\xf0\x73\x10\x00"};
-	
-	//we need bigendian data...
-	//lessons learned: do NOT endianchange directly in pdata, this will all proof-of-works be considered as stale from minerd.... 
-	int kk=0;
-	for (; kk < 32; kk++)
-	{
-		be32enc(&endiandata[kk], ((uint32_t*)pdata)[kk]);
+
+	uint64_t htmax[] = {
+		0,
+		0xF,
+		0xFF,
+		0xFFF,
+		0xFFFF,
+		0x10000000
+	};
+	uint32_t masks[] = {
+		0xFFFFFFFF,
+		0xFFFFFFF0,
+		0xFFFFFF00,
+		0xFFFFF000,
+		0xFFFF0000,
+		0
 	};
 
-//	if (opt_debug) 
-//	{
-//		applog(LOG_DEBUG, "Thr: %02d, firstN: %08x, maxN: %08x, ToDo: %d", thr_id, first_nonce, max_nonce, max_nonce-first_nonce);
-//	}
-	
-	/* I'm to lazy to put the loop in an inline function... so dirty copy'n'paste.... */
-	/* i know that i could set a variable, but i don't know how the compiler will optimize it, not that then the cpu needs to load the value *everytime* in a register */
-	if (ptarget[7]==0) {
-		do {
-			pdata[19] = ++n;
-			be32enc(&endiandata[19], n); 
-			x11_hash((char*) hash64, (const char*) endiandata);
-			if (((hash64[7]&0xFFFFFFFF)==0) && 
-					fulltest(hash64, ptarget)) {
-				*hashes_done = n - first_nonce + 1;
-				return true;
-			}
-		} while (n < max_nonce && !work_restart[thr_id].restart);	
-	} 
-	else if (ptarget[7]<=0xF) 
-	{
-		do {
-			pdata[19] = ++n;
-			be32enc(&endiandata[19], n); 
-			x11_hash((char*) hash64, (const char*) endiandata);
-			if (((hash64[7]&0xFFFFFFF0)==0) && 
-					fulltest(hash64, ptarget)) {
-				*hashes_done = n - first_nonce + 1;
-				return true;
-			}
-		} while (n < max_nonce && !work_restart[thr_id].restart);	
-	} 
-	else if (ptarget[7]<=0xFF) 
-	{
-		do {
-			pdata[19] = ++n;
-			be32enc(&endiandata[19], n); 
-			x11_hash((char*) hash64, (const char*) endiandata);
-			if (((hash64[7]&0xFFFFFF00)==0) && 
-					fulltest(hash64, ptarget)) {
-				*hashes_done = n - first_nonce + 1;
-				return true;
-			}
-		} while (n < max_nonce && !work_restart[thr_id].restart);	
-	} 
-	else if (ptarget[7]<=0xFFF) 
-	{
-		do {
-			pdata[19] = ++n;
-			be32enc(&endiandata[19], n); 
-			x11_hash((char*) hash64, (const char*) endiandata);
-			if (((hash64[7]&0xFFFFF000)==0) && 
-					fulltest(hash64, ptarget)) {
-				*hashes_done = n - first_nonce + 1;
-				return true;
-			}
-		} while (n < max_nonce && !work_restart[thr_id].restart);	
-
-	} 
-	else if (ptarget[7]<=0xFFFF) 
-	{
-		do {
-			pdata[19] = ++n;
-			be32enc(&endiandata[19], n); 
-			x11_hash((char*) hash64, (const char*) endiandata);
-			if (((hash64[7]&0xFFFF0000)==0) && 
-					fulltest(hash64, ptarget)) {
-				*hashes_done = n - first_nonce + 1;
-				return true;
-			}
-		} while (n < max_nonce && !work_restart[thr_id].restart);	
-
-	} 
-	else 
-	{
-		do {
-			pdata[19] = ++n;
-			be32enc(&endiandata[19], n); 
-			x11_hash((char*) hash64, (const char*) endiandata);
-			if (fulltest(hash64, ptarget)) {
-				*hashes_done = n - first_nonce + 1;
-				return true;
-			}
-		} while (n < max_nonce && !work_restart[thr_id].restart);	
+	// we need bigendian data...
+	for (int kk=0; kk < 32; kk++) {
+		be32enc(&endiandata[kk], ((uint32_t*)pdata)[kk]);
+	};
+#ifdef DEBUG_ALGO
+	printf("[%d] Htarg=%X\n", thr_id, Htarg);
+#endif
+	for (int m=0; m < sizeof(masks); m++) {
+		if (Htarg <= htmax[m]) {
+			uint32_t mask = masks[m];
+			do {
+				pdata[19] = ++n;
+				be32enc(&endiandata[19], n);
+				x11hash(hash64, &endiandata);
+#ifndef DEBUG_ALGO
+				if ((!(hash64[7] & mask)) && fulltest(hash64, ptarget)) {
+					*hashes_done = n - first_nonce + 1;
+					return true;
+				}
+#else
+				if (!(n % 0x1000) && !thr_id) printf(".");
+				if (!(hash64[7] & mask)) {
+					printf("[%d]",thr_id);
+					if (fulltest(hash64, ptarget)) {
+						*hashes_done = n - first_nonce + 1;
+						return true;
+					}
+				}
+#endif
+			} while (n < max_nonce && !work_restart[thr_id].restart);
+			// see blake.c if else to understand the loop on htmax => mask
+			break;
+		}
 	}
-	
-	
+
 	*hashes_done = n - first_nonce + 1;
 	pdata[19] = n;
 	return 0;

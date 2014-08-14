@@ -8,37 +8,38 @@
 
 #include "sha3/sph_skein.h"
 
-static void skeinhash(void *state, const void *input)
-{
-    sph_skein512_context     ctx_skein;
-    static unsigned char pblank[1];
+/* Move init out of loop, so init once externally, and then use one single memcpy with that bigger memory block */
+typedef struct {
+	sph_skein512_context	skein;
+} skeinhash_context_holder;
 
-    uint32_t mask = 8;
-    uint32_t zero = 0;
+/* no need to copy, because close reinit the context */
+static __thread skeinhash_context_holder ctx;
+
+void init_skein_contexts(void *dummy)
+{
+	sph_skein512_init(&ctx.skein);
+}
+
+static void skeinhash(void *output, const void *input)
+{
+	uint32_t mask = 8;
+	uint32_t zero = 0;
 
 	//these uint512 in the c++ source of the client are backed by an array of uint32
-    uint32_t hashA[16], hashB[16];	
-	
-    sph_skein512_init(&ctx_skein);
-    sph_skein512 (&ctx_skein, input, 80); //6
-    sph_skein512_close(&ctx_skein, hashA); //7
+	uint32_t hash[16];
 
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    SHA256_Update(&sha256, hashA, 64);
-    SHA256_Final((unsigned char*) hashB, &sha256);
+	memset(hash, 0, 16 * sizeof(uint32_t));
 
-    memcpy(state, hashB, 32);
-	
+	sph_skein512(&ctx.skein, input, 80);
+	sph_skein512_close(&ctx.skein, hash);
 
-/*	int ii;
-	printf("result: ");
-	for (ii=0; ii < 32; ii++)
-	{
-		printf ("%.2x",((uint8_t*)state)[ii]);
-	};
-	printf ("\n");	
-*/	
+	SHA256_CTX sha256;
+	SHA256_Init(&sha256);
+	SHA256_Update(&sha256, hash, 64);
+	SHA256_Final((unsigned char*)hash, &sha256);
+
+	memcpy(output, hash, 32);
 }
 
 int scanhash_skein(int thr_id, uint32_t *pdata, const uint32_t *ptarget,
@@ -50,28 +51,59 @@ int scanhash_skein(int thr_id, uint32_t *pdata, const uint32_t *ptarget,
 
 	uint32_t hash64[8] __attribute__((aligned(32)));
 	uint32_t endiandata[32];
-	
-	//char testdata[] = {"\x70\x00\x00\x00\x5d\x38\x5b\xa1\x14\xd0\x79\x97\x0b\x29\xa9\x41\x8f\xd0\x54\x9e\x7d\x68\xa9\x5c\x7f\x16\x86\x21\xa3\x14\x20\x10\x00\x00\x00\x00\x57\x85\x86\xd1\x49\xfd\x07\xb2\x2f\x3a\x8a\x34\x7c\x51\x6d\xe7\x05\x2f\x03\x4d\x2b\x76\xff\x68\xe0\xd6\xec\xff\x9b\x77\xa4\x54\x89\xe3\xfd\x51\x17\x32\x01\x1d\xf0\x73\x10\x00"};
-	
-	//we need bigendian data...
-	//lessons learned: do NOT endianchange directly in pdata, this will all proof-of-works be considered as stale from minerd.... 
-	int kk=0;
-	for (; kk < 32; kk++)
-	{
-		be32enc(&endiandata[kk], ((uint32_t*)pdata)[kk]);
+
+	uint64_t htmax[] = {
+		0,
+		0xF,
+		0xFF,
+		0xFFF,
+		0xFFFF,
+		0x10000000
+	};
+	uint32_t masks[] = {
+		0xFFFFFFFF,
+		0xFFFFFFF0,
+		0xFFFFFF00,
+		0xFFFFF000,
+		0xFFFF0000,
+		0
 	};
 
-	do {
-		pdata[19] = ++n;
-		be32enc(&endiandata[19], n); 
-		skeinhash(hash64, &endiandata);
-        if (((hash64[7]&0xFFFFFF00)==0) && 
-				fulltest(hash64, ptarget)) {
-            *hashes_done = n - first_nonce + 1;
-			return true;
+	// we need bigendian data...
+	for (int kk=0; kk < 32; kk++) {
+		be32enc(&endiandata[kk], ((uint32_t*)pdata)[kk]);
+	};
+#ifdef DEBUG_ALGO
+	printf("[%d] Htarg=%X\n", thr_id, Htarg);
+#endif
+	for (int m=0; m < sizeof(masks); m++) {
+		if (Htarg <= htmax[m]) {
+			uint32_t mask = masks[m];
+			do {
+				pdata[19] = ++n;
+				be32enc(&endiandata[19], n);
+				skeinhash(hash64, &endiandata);
+#ifndef DEBUG_ALGO
+				if ((!(hash64[7] & mask)) && fulltest(hash64, ptarget)) {
+					*hashes_done = n - first_nonce + 1;
+					return true;
+				}
+#else
+				if (!(n % 0x1000) && !thr_id) printf(".");
+				if (!(hash64[7] & mask)) {
+					printf("[%d]",thr_id);
+					if (fulltest(hash64, ptarget)) {
+						*hashes_done = n - first_nonce + 1;
+						return true;
+					}
+				}
+#endif
+			} while (n < max_nonce && !work_restart[thr_id].restart);
+			// see blake.c if else to understand the loop on htmax => mask
+			break;
 		}
-	} while (n < max_nonce && !work_restart[thr_id].restart);
-	
+	}
+
 	*hashes_done = n - first_nonce + 1;
 	pdata[19] = n;
 	return 0;

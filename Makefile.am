@@ -18,8 +18,10 @@ dist_man_MANS	= minerd.1
 minerd_SOURCES	= elist.h \
 		  miner.h \
 		  compat.h \
+		  algorithm.h \
 		  cpu-miner.c \
 		  util.c \
+		  algorithm.c \
 		  algorithm/sha2.c \
 		  algorithm/scrypt.c \
 		  algorithm/keccak.c \

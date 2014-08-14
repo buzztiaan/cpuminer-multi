@@ -47,6 +47,26 @@ static const uint32_t finalblk[16] = {
 	0x00000001, 0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000620
 };
 
+/* Move init out of loop, so init once externally, and then use one single memcpy with that bigger memory block */
+typedef struct {
+	int n;
+	unsigned char *scratchbuf;
+} scrypthash_context_holder;
+
+/* no need to copy, because close reinit the context */
+static __thread scrypthash_context_holder ctx;
+
+void init_scrypt_contexts(void *dummy)
+{
+	ctx.n = *(int *)dummy;
+	ctx.scratchbuf = scrypt_buffer_alloc(ctx.n);
+	if (!ctx.scratchbuf) {
+		applog(LOG_ERR, "scrypt buffer allocation failed");
+		pthread_mutex_lock(&applog_lock);
+		exit(1);
+	}
+}
+
 static inline void HMAC_SHA256_80_init(const uint32_t *key,
 	uint32_t *tstate, uint32_t *ostate)
 {
@@ -694,8 +714,8 @@ static void scrypt_1024_1_1_256_24way(const uint32_t *input,
 #endif /* HAVE_SCRYPT_6WAY */
 
 int scanhash_scrypt(int thr_id, uint32_t *pdata,
-	unsigned char *scratchbuf, const uint32_t *ptarget,
-	uint32_t max_nonce, uint64_t *hashes_done, int N)
+	const uint32_t *ptarget,
+	uint32_t max_nonce, uint64_t *hashes_done)
 {
 	uint32_t data[SCRYPT_MAX_WAYS * 20], hash[SCRYPT_MAX_WAYS * 8];
 	uint32_t midstate[8];
@@ -721,25 +741,25 @@ int scanhash_scrypt(int thr_id, uint32_t *pdata,
 		
 #if defined(HAVE_SHA256_4WAY)
 		if (throughput == 4)
-			scrypt_1024_1_1_256_4way(data, hash, midstate, scratchbuf, N);
+			scrypt_1024_1_1_256_4way(data, hash, midstate, ctx.scratchbuf, ctx.n);
 		else
 #endif
 #if defined(HAVE_SCRYPT_3WAY) && defined(HAVE_SHA256_4WAY)
 		if (throughput == 12)
-			scrypt_1024_1_1_256_12way(data, hash, midstate, scratchbuf, N);
+			scrypt_1024_1_1_256_12way(data, hash, midstate, ctx.scratchbuf, ctx.n);
 		else
 #endif
 #if defined(HAVE_SCRYPT_6WAY)
 		if (throughput == 24)
-			scrypt_1024_1_1_256_24way(data, hash, midstate, scratchbuf, N);
+			scrypt_1024_1_1_256_24way(data, hash, midstate, ctx.scratchbuf, ctx.n);
 		else
 #endif
 #if defined(HAVE_SCRYPT_3WAY)
 		if (throughput == 3)
-			scrypt_1024_1_1_256_3way(data, hash, midstate, scratchbuf, N);
+			scrypt_1024_1_1_256_3way(data, hash, midstate, ctx.scratchbuf, ctx.n);
 		else
 #endif
-		scrypt_1024_1_1_256(data, hash, midstate, scratchbuf, N);
+		scrypt_1024_1_1_256(data, hash, midstate, ctx.scratchbuf, ctx.n);
 		
 		for (i = 0; i < throughput; i++) {
 			if (unlikely(hash[i * 8 + 7] <= Htarg && fulltest(hash + i * 8, ptarget))) {

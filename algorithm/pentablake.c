@@ -9,30 +9,38 @@
 
 //#define DEBUG_ALGO
 
+typedef struct {
+	sph_blake512_context	blake;
+} pentablakehash_context_holder;
+
+/* no need to copy, because close reinit the context */
+static __thread pentablakehash_context_holder ctx;
+
+void init_pentablake_contexts()
+{
+	sph_blake512_init(&ctx.blake);
+}
+
 static void pentablakehash(void *output, const void *input)
 {
-	unsigned char hash[128]; // uint32_t hashA[16], hashB[16];
-	#define hashB hash+64
+	uint32_t hash[16];
 
-	memset(hash, 0, 128);
+	memset(hash, 0, 16 * sizeof(uint32_t));
 
-	sph_blake512_context     ctx_blake;
+	sph_blake512(&ctx.blake, input, 80);
+	sph_blake512_close(&ctx.blake, hash);
 
-	sph_blake512_init(&ctx_blake);
-	sph_blake512(&ctx_blake, input, 80);
-	sph_blake512_close(&ctx_blake, hash);
+	sph_blake512(&ctx.blake, hash, 64);
+	sph_blake512_close(&ctx.blake, hash);
 
-	sph_blake512(&ctx_blake, hash, 64);
-	sph_blake512_close(&ctx_blake, hashB);
+	sph_blake512(&ctx.blake, hash, 64);
+	sph_blake512_close(&ctx.blake, hash);
 
-	sph_blake512(&ctx_blake, hashB, 64);
-	sph_blake512_close(&ctx_blake, hash);
+	sph_blake512(&ctx.blake, hash, 64);
+	sph_blake512_close(&ctx.blake, hash);
 
-	sph_blake512(&ctx_blake, hash, 64);
-	sph_blake512_close(&ctx_blake, hashB);
-
-	sph_blake512(&ctx_blake, hashB, 64);
-	sph_blake512_close(&ctx_blake, hash);
+	sph_blake512(&ctx.blake, hash, 64);
+	sph_blake512_close(&ctx.blake, hash);
 
 	memcpy(output, hash, 32);
 }
@@ -69,8 +77,7 @@ int scanhash_pentablake(int thr_id, uint32_t *pdata, const uint32_t *ptarget,
 		be32enc(&endiandata[kk], ((uint32_t*)pdata)[kk]);
 	};
 #ifdef DEBUG_ALGO
-	if (Htarg != 0)
-		printf("[%d] Htarg=%X\n", thr_id, Htarg);
+	printf("[%d] Htarg=%X\n", thr_id, Htarg);
 #endif
 	for (int m=0; m < sizeof(masks); m++) {
 		if (Htarg <= htmax[m]) {
