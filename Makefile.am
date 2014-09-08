@@ -20,21 +20,21 @@ minerd_SOURCES	= elist.h \
 		  compat.h \
 		  cpu-miner.c \
 		  util.c \
-		  sha2.c \
-		  scrypt.c \
-		  keccak.c \
-		  heavy.c \
-		  quark.c \
-		  skein.c \
-		  ink.c \
-		  blake.c \
-		  cryptonight.c \
-		  fresh.c \
-		  x11.c \
-		  x13.c \
-		  x14.c \
-		  x15.c \
-		  pentablake.c \
+		  algorithm/sha2.c \
+		  algorithm/scrypt.c \
+		  algorithm/keccak.c \
+		  algorithm/heavy.c \
+		  algorithm/quark.c \
+		  algorithm/skein.c \
+		  algorithm/ink.c \
+		  algorithm/blake.c \
+		  algorithm/cryptonight.c \
+		  algorithm/fresh.c \
+		  algorithm/x11.c \
+		  algorithm/x13.c \
+		  algorithm/x14.c \
+		  algorithm/x15.c \
+		  algorithm/pentablake.c \
 		  sha3/sph_keccak.c \
 		  sha3/sph_hefty1.c \
 		  sha3/sph_groestl.c \
@@ -61,13 +61,13 @@ minerd_SOURCES	= elist.h \
 		  crypto/aesb.c
 if USE_ASM
 if ARCH_x86
-minerd_SOURCES += sha2-x86.S scrypt-x86.S aesb-x86.S crypto/aesb-x86-impl.c
+minerd_SOURCES += algorithm/sha2-x86.S algorithm/scrypt-x86.S algorithm/aesb-x86.S crypto/aesb-x86-impl.c
 endif
 if ARCH_x86_64
-minerd_SOURCES += sha2-x64.S scrypt-x64.S aesb-x64.S
+minerd_SOURCES += algorithm/sha2-x64.S algorithm/scrypt-x64.S algorithm/aesb-x64.S
 endif
 if ARCH_ARM
-minerd_SOURCES += sha2-arm.S scrypt-arm.S
+minerd_SOURCES += algorithm/sha2-arm.S algorithm/scrypt-arm.S
 endif
 endif
 
