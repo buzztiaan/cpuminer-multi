@@ -15,7 +15,7 @@ typedef struct {
 } myriadcoin_groestlhash_context_holder;
 
 /* no need to copy, because close reinit the context */
-static __thread myriadcoin_groestlhash_context_holder ctx;
+static THREADLOCAL myriadcoin_groestlhash_context_holder ctx;
 
 void init_myriadcoin_groestl_contexts(void *dummy)
 {

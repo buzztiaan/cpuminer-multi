@@ -11,7 +11,7 @@ typedef struct {
 	sph_blake256_context	blake;
 } blakehash_context_holder;
 
-static __thread blakehash_context_holder ctx;
+static THREADLOCAL blakehash_context_holder ctx;
 
 void init_blake_contexts()
 {

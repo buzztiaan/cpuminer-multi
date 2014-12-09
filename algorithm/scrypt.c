@@ -54,7 +54,7 @@ typedef struct {
 } scrypthash_context_holder;
 
 /* no need to copy, because close reinit the context */
-static __thread scrypthash_context_holder ctx;
+static THREADLOCAL scrypthash_context_holder ctx;
 
 void init_scrypt_contexts(void *dummy)
 {

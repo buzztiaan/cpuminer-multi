@@ -37,7 +37,7 @@ typedef struct {
 } x13hash_context_holder;
 
 /* no need to copy, because close reinit the context */
-static __thread x13hash_context_holder ctx;
+static THREADLOCAL x13hash_context_holder ctx;
 
 void init_x13_contexts(void *dummy)
 {

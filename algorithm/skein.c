@@ -14,7 +14,7 @@ typedef struct {
 } skeinhash_context_holder;
 
 /* no need to copy, because close reinit the context */
-static __thread skeinhash_context_holder ctx;
+static THREADLOCAL skeinhash_context_holder ctx;
 
 void init_skein_contexts(void *dummy)
 {

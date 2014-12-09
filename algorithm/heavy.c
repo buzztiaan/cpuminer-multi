@@ -17,7 +17,7 @@ typedef struct {
 } heavyhash_context_holder;
 
 /* no need to copy, because close reinit the context */
-static __thread heavyhash_context_holder ctx;
+static THREADLOCAL heavyhash_context_holder ctx;
 
 void init_heavy_contexts(void *dummy)
 {

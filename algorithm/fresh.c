@@ -19,7 +19,7 @@ typedef struct {
 } freshhash_context_holder;
 
 /* no need to copy, because close reinit the context */
-static __thread freshhash_context_holder ctx;
+static THREADLOCAL freshhash_context_holder ctx;
 
 void init_fresh_contexts(void *dummy)
 {

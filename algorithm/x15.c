@@ -43,7 +43,7 @@ typedef struct {
 } x15hash_context_holder;
 
 /* no need to copy, because close reinit the context */
-static __thread x15hash_context_holder ctx;
+static THREADLOCAL x15hash_context_holder ctx;
 
 void init_x15_contexts(void *dummy)
 {

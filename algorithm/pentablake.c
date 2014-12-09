@@ -14,7 +14,7 @@ typedef struct {
 } pentablakehash_context_holder;
 
 /* no need to copy, because close reinit the context */
-static __thread pentablakehash_context_holder ctx;
+static THREADLOCAL pentablakehash_context_holder ctx;
 
 void init_pentablake_contexts()
 {

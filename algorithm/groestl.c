@@ -13,7 +13,7 @@ typedef struct {
 } groestlhash_context_holder;
 
 /* no need to copy, because close reinit the context */
-static __thread groestlhash_context_holder ctx;
+static THREADLOCAL groestlhash_context_holder ctx;
 
 void init_groestl_contexts(void *dummy)
 {

@@ -12,7 +12,7 @@ typedef struct {
 } inkhash_context_holder;
 
 /* no need to copy, because close reinit the context */
-static __thread inkhash_context_holder ctx;
+static THREADLOCAL inkhash_context_holder ctx;
 
 void init_ink_contexts(void *dummy)
 {

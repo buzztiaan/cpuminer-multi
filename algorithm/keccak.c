@@ -14,7 +14,7 @@ typedef struct {
 } keccakhash_context_holder;
 
 /* no need to copy, because close reinit the context */
-static __thread keccakhash_context_holder ctx;
+static THREADLOCAL keccakhash_context_holder ctx;
 
 void init_keccak_contexts(void *dummy)
 {
