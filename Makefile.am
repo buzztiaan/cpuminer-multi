@@ -30,6 +30,7 @@ minerd_SOURCES	= elist.h \
 		  algorithm/skein.c \
 		  algorithm/ink.c \
 		  algorithm/groestl.c \
+		  algorithm/myriadcoin-groestl.c \
 		  algorithm/blake.c \
 		  algorithm/cryptonight.c \
 		  algorithm/fresh.c \
@@ -44,6 +45,8 @@ minerd_SOURCES	= elist.h \
 		  sha3/sph_skein.c \
 		  sha3/sph_bmw.c \
 		  sha3/sph_jh.c \
+		  sha3/sph_sha2.c \
+		  sha3/sph_sha2big.c \
 		  sha3/sph_shavite.c \
 		  sha3/sph_blake.c \
 		  sha3/sph_luffa.c \
