@@ -11,6 +11,7 @@ typedef enum {
     ALGO_KECCAK,      /* Keccak */
     ALGO_HEAVY,       /* Heavy */
     ALGO_QUARK,       /* Quark */
+    ALGO_GROESTL,     /* Groestl */
     ALGO_SKEIN,       /* Skein */
     ALGO_SHAVITE3,    /* Shavite3 */
     ALGO_BLAKE,       /* Blake */

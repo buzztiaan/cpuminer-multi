@@ -29,6 +29,7 @@ minerd_SOURCES	= elist.h \
 		  algorithm/quark.c \
 		  algorithm/skein.c \
 		  algorithm/ink.c \
+		  algorithm/groestl.c \
 		  algorithm/blake.c \
 		  algorithm/cryptonight.c \
 		  algorithm/fresh.c \
