@@ -198,6 +198,7 @@ void sph_blake256_init(void *cc);
  * @param len    the input data length (in bytes)
  */
 void sph_blake256(void *cc, const void *data, size_t len);
+void sph_blake256_mod(void *cc, const void *data, size_t len);
 
 /**
  * Terminate the current BLAKE-256 computation and output the result into
@@ -209,6 +210,7 @@ void sph_blake256(void *cc, const void *data, size_t len);
  * @param dst   the destination buffer
  */
 void sph_blake256_close(void *cc, void *dst);
+void sph_blake256_close_mod(void *cc, void *dst);
 
 /**
  * Add a few additional bits (0 to 7) to the current computation, then
@@ -224,6 +226,8 @@ void sph_blake256_close(void *cc, void *dst);
  * @param dst   the destination buffer
  */
 void sph_blake256_addbits_and_close(
+	void *cc, unsigned ub, unsigned n, void *dst);
+void sph_blake256_addbits_and_close_mod(
 	void *cc, unsigned ub, unsigned n, void *dst);
 
 #if SPH_64

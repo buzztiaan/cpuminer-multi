@@ -28,8 +28,8 @@ static void blakehash(void *state, const void *input)
 //do one memcopy to get fresh contexts, its faster even with a larger block then issuing 9 memcopies
     memcpy(&ctx, &base_contexts, sizeof(base_contexts));
 
-    sph_blake256 (&ctx.blake1, input, 80);
-    sph_blake256_close (&ctx.blake1, hashA);	 //0
+    sph_blake256_mod (&ctx.blake1, input, 80);
+    sph_blake256_close_mod (&ctx.blake1, hashA);	 //0
     memcpy(state, hashA, 32);
 
 }
