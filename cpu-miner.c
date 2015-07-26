@@ -827,7 +827,7 @@ static void *workio_thread(void *userdata) {
         return NULL ;
     }
 
-    if(!have_stratum) {
+    if(!have_stratum && jsonrpc_2) {
         ok = workio_login(curl);
     }
 
