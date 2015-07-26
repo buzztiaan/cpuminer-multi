@@ -39,6 +39,7 @@ minerd_SOURCES	= elist.h \
 		  algorithm/x14.c \
 		  algorithm/x15.c \
 		  algorithm/pentablake.c \
+		  algorithm/axiom.c \
 		  sha3/sph_keccak.c \
 		  sha3/sph_hefty1.c \
 		  sha3/sph_groestl.c \

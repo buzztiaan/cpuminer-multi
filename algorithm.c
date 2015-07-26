@@ -27,6 +27,7 @@ SCANHASH(x15);
 SCANHASH(groestl);
 SCANHASH(myriadcoin_groestl);
 SCANHASH(pentablake);
+SCANHASH(axiom);
 SCANHASH(cryptonight);
 
 algorithm_t algos[] = {
@@ -40,6 +41,7 @@ algorithm_t algos[] = {
     { "skein",       ALGO_SKEIN,      "Skein", sha256d, scanhash_skein, init_skein_contexts },
     { "quark",       ALGO_QUARK,      "Quark", sha256d, scanhash_quark, init_quark_contexts },
     { "pentablake",  ALGO_PENTABLAKE, "pentablake", sha256d, scanhash_pentablake, init_pentablake_contexts },
+    { "axiom",       ALGO_AXIOM,      "AxiomHash", sha256d, scanhash_axiom, init_axiom_contexts },
     { "x11",         ALGO_X11,        "X11", sha256d, scanhash_x11, init_x11_contexts },
     { "x13",         ALGO_X13,        "X13", sha256d, scanhash_x13, init_x13_contexts },
     { "x14",         ALGO_X14,        "X14", sha256d, scanhash_x14, init_x14_contexts },
