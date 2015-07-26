@@ -520,6 +520,13 @@ static void share_result(int result, struct work *work, const char *reason) {
                 (((double) 0xffffffff) / (work ? work->target[7] : rpc2_target)),
                 result ? "(yay!!!)" : "(booooo)");
         break;
+    case ALGO_AXIOM:
+        sprintf(s, hashrate >= 1e3 ? "%.0f" : "%.2f", hashrate);
+        applog(LOG_INFO, "accepted: %lu/%lu (%.2f%%), %s hash/s %s",
+                accepted_count, accepted_count + rejected_count,
+                100. * accepted_count / (accepted_count + rejected_count), s,
+                result ? "(yay!!!)" : "(booooo)");
+        break;
     default:
         sprintf(s, hashrate >= 1e6 ? "%.0f" : "%.2f", 1e-3 * hashrate);
         applog(LOG_INFO, "accepted: %lu/%lu (%.2f%%), %s khash/s %s",
@@ -1125,6 +1132,12 @@ static void *miner_thread(void *userdata) {
                 applog(LOG_INFO, "thread %d: %lu hashes, %.2f H/s", thr_id,
                         hashes_done, thr_hashrates[thr_id]);
                 break;
+            case ALGO_AXIOM:
+                sprintf(s, thr_hashrates[thr_id] >= 1e3 ? "%.0f" : "%.2f",
+                        thr_hashrates[thr_id]);
+                applog(LOG_INFO, "thread %d: %llu hashes, %s hash/s", thr_id,
+                        hashes_done, s);
+                break;
             default:
                 sprintf(s, thr_hashrates[thr_id] >= 1e6 ? "%.0f" : "%.2f",
                         thr_hashrates[thr_id] / 1e3);
@@ -1141,6 +1154,10 @@ static void *miner_thread(void *userdata) {
                 switch(opt_algo.type) {
                 case ALGO_CRYPTONIGHT:
                     applog(LOG_INFO, "Total: %s H/s", hashrate);
+                    break;
+                case ALGO_AXIOM:
+                    sprintf(s, hashrate >= 1e3 ? "%.0f" : "%.2f", hashrate);
+                    applog(LOG_INFO, "Total: %s hash/s", s);
                     break;
                 default:
                     sprintf(s, hashrate >= 1e6 ? "%.0f" : "%.2f", hashrate / 1000);
