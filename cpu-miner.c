@@ -1730,9 +1730,10 @@ static void signal_handler(int sig) {
 
 #if defined(__i386__) || defined(__x86_64__)
 static inline int cpuid(int code, uint32_t where[4]) {
-	asm volatile("cpuid":"=a"(*where),"=b"(*(where+1)),
-			"=c"(*(where+2)),"=d"(*(where+3)):"a"(code));
-	return (int)where[0];
+//	asm volatile("cpuid":"=a"(*where),"=b"(*(where+1)),
+//			"=c"(*(where+2)),"=d"(*(where+3)):"a"(code));
+//	return (int)where[0];
+	return (int)0;
 }
 #endif
 
